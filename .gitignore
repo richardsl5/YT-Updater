@@ -1,0 +1,23 @@
+# Credentials and tokens - NEVER commit these
+credentials.json
+token.json
+token_write.json
+client_secret*.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+venv/
+env/
+.env
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
