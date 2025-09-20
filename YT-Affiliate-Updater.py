@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-YouTube Affiliate Links Manager - Step 3
+YouTube Affiliate Links Manager - Fixed Version
 Manages affiliate link sections in video descriptions using delimiters
 """
 
@@ -35,8 +35,14 @@ class YouTubeAffiliateManager:
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 print("Refreshing expired credentials...")
-                creds.refresh(Request())
-            else:
+                try:
+                    creds.refresh(Request())
+                except Exception as e:
+                    print(f"? Token refresh failed: {e}")
+                    print("?? Starting fresh authentication...")
+                    creds = None  # Force new OAuth flow
+            
+            if not creds or not creds.valid:
                 print("??  Starting OAuth flow for WRITE permissions...")
                 flow = InstalledAppFlow.from_client_secrets_file(
                     self.credentials_file, SCOPES)
@@ -83,6 +89,21 @@ class YouTubeAffiliateManager:
             return match.group(1).strip()
         return None
     
+    def split_description_around_affiliate_section(self, description):
+        """Split description into before, affiliate section, and after parts"""
+        pattern = f"{re.escape(START_DELIMITER)}(.*?){re.escape(END_DELIMITER)}"
+        match = re.search(pattern, description, re.DOTALL)
+        
+        if match:
+            # Found existing affiliate section
+            before = description[:match.start()].rstrip()
+            affiliate = match.group(1).strip()
+            after = description[match.end():].lstrip()
+            return before, affiliate, after
+        else:
+            # No existing affiliate section
+            return description.rstrip(), None, ""
+    
     def remove_affiliate_section(self, description):
         """Remove existing affiliate section from description"""
         pattern = f"{re.escape(START_DELIMITER)}.*?{re.escape(END_DELIMITER)}"
@@ -93,14 +114,22 @@ class YouTubeAffiliateManager:
         return cleaned
     
     def add_affiliate_section(self, description, affiliate_content):
-        """Add affiliate section to description"""
-        # Remove existing section first
-        clean_description = self.remove_affiliate_section(description)
+        """Add affiliate section to description, preserving content before AND after"""
+        # Split the description around any existing affiliate section
+        before, old_affiliate, after = self.split_description_around_affiliate_section(description)
         
-        # Add new section at the end
+        # Build the new description
+        new_description = before
+        
+        # Add affiliate section
         affiliate_section = f"\n\n{START_DELIMITER}\n{affiliate_content}\n{END_DELIMITER}"
+        new_description += affiliate_section
         
-        return clean_description + affiliate_section
+        # Add any content that was after the old affiliate section
+        if after:
+            new_description += f"\n\n{after}"
+        
+        return new_description
     
     def update_video_affiliate_links(self, video_id, new_affiliate_content):
         """Update only the affiliate links section of a video"""
@@ -183,15 +212,38 @@ class YouTubeAffiliateManager:
         preview = new_affiliate_content[:200]
         print(f"'{preview}{'...' if len(new_affiliate_content) > 200 else ''}'")
 
+def load_affiliate_content_from_file(filename='description.txt'):
+    """Load affiliate content from text file"""
+    try:
+        with open(filename, 'r', encoding='utf-8') as f:
+            content = f.read().strip()
+        
+        print(f"? Loaded affiliate content from {filename}")
+        print(f"?? Content length: {len(content)} characters")
+        return content
+        
+    except FileNotFoundError:
+        print(f"? File '{filename}' not found!")
+        print(f"?? Please create {filename} with your affiliate content.")
+        return None
+    except Exception as e:
+        print(f"? Error reading {filename}: {e}")
+        return None
+
 def main():
-    print("?? YouTube Affiliate Links Manager - Step 3")
+    print("?? YouTube Affiliate Links Manager - Fixed Version")
     print("=" * 50)
     
     # Test video ID
     test_video_id = "dp3Di1Hdgfk"
     
-    # Sample affiliate content
-    sample_affiliate_content = """??? RECOMMENDED PRODUCTS & TOOLS:
+    # Load affiliate content from file
+    print("?? Loading affiliate content from file...")
+    affiliate_content = load_affiliate_content_from_file('description.txt')
+    
+    if not affiliate_content:
+        print("\n?? Creating sample description.txt file...")
+        sample_content = """??? RECOMMENDED PRODUCTS & TOOLS:
 
 **Testing & Assessment:**
 ApoE Genetic Test - Know your Alzheimer's risk factors
@@ -210,6 +262,22 @@ Nordic Naturals - Code: LONGEVITY15 - https://example.com/omega3
 Amazon - https://example.com/alzheimers-book
 
 ?? These are affiliate links - using them supports the channel at no extra cost to you."""
+        
+        try:
+            with open('description.txt', 'w', encoding='utf-8') as f:
+                f.write(sample_content)
+            print("? Created sample description.txt file")
+            print("?? Edit this file with your content and run the script again")
+            return
+        except Exception as e:
+            print(f"? Could not create description.txt: {e}")
+            return
+    
+    # Check if credentials file exists
+    if not os.path.exists('credentials.json'):
+        print("? credentials.json not found!")
+        print("Please download it from Google Cloud Console first.")
+        return
     
     # Initialize manager
     manager = YouTubeAffiliateManager()
@@ -222,7 +290,7 @@ Amazon - https://example.com/alzheimers-book
         
         # Preview changes first
         print("?? PREVIEW MODE:")
-        manager.preview_changes(test_video_id, sample_affiliate_content)
+        manager.preview_changes(test_video_id, affiliate_content)
         
         print(f"\n? Update affiliate links section?")
         confirm = input("Type 'yes' to proceed: ").strip().lower()
@@ -230,7 +298,7 @@ Amazon - https://example.com/alzheimers-book
         if confirm == 'yes':
             success = manager.update_video_affiliate_links(
                 test_video_id, 
-                sample_affiliate_content
+                affiliate_content
             )
             
             if success:
