@@ -6,6 +6,7 @@ Manages affiliate link sections in video descriptions using delimiters
 
 import os
 import re
+import sys
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -16,8 +17,16 @@ from googleapiclient.errors import HttpError
 SCOPES = ['https://www.googleapis.com/auth/youtube']
 
 # Affiliate section delimiters
-START_DELIMITER = "########## AFFILIATE LINKS ##########"
-END_DELIMITER = "######## END AFFILIATE LINKS ########"
+START_DELIMITER = "~~~~~~~~~~~~~~"
+END_DELIMITER = "~~~~~~~~~~~~~~"
+
+# Global debug flag
+DEBUG = False
+
+def debug_print(message):
+    """Print message only if debug mode is enabled"""
+    if DEBUG:
+        print(message)
 
 class YouTubeAffiliateManager:
     def __init__(self, credentials_file='credentials.json'):
@@ -34,16 +43,16 @@ class YouTubeAffiliateManager:
         
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
-                print("Refreshing expired credentials...")
+                debug_print("Refreshing expired credentials...")
                 try:
                     creds.refresh(Request())
                 except Exception as e:
                     print(f"? Token refresh failed: {e}")
-                    print("?? Starting fresh authentication...")
+                    debug_print("?? Starting fresh authentication...")
                     creds = None  # Force new OAuth flow
             
             if not creds or not creds.valid:
-                print("??  Starting OAuth flow for WRITE permissions...")
+                debug_print("??  Starting OAuth flow for WRITE permissions...")
                 flow = InstalledAppFlow.from_client_secrets_file(
                     self.credentials_file, SCOPES)
                 
@@ -59,7 +68,7 @@ class YouTubeAffiliateManager:
                 token.write(creds.to_json())
                 
         self.youtube = build('youtube', 'v3', credentials=creds)
-        print("? Successfully authenticated with YouTube API")
+        debug_print("? Successfully authenticated with YouTube API")
         
     def get_video_details(self, video_id):
         """Get current video details"""
@@ -143,19 +152,19 @@ class YouTubeAffiliateManager:
             current_description = current_snippet['description']
             
             print(f"?? Video: {current_snippet['title']}")
-            print(f"?? Current description length: {len(current_description)} characters")
+            debug_print(f"?? Current description length: {len(current_description)} characters")
             
             # Extract existing affiliate section
             existing_affiliate = self.extract_affiliate_section(current_description)
             if existing_affiliate:
-                print(f"?? Found existing affiliate section ({len(existing_affiliate)} chars)")
+                debug_print(f"?? Found existing affiliate section ({len(existing_affiliate)} chars)")
             else:
-                print("?? No existing affiliate section found - will add new one")
+                debug_print("?? No existing affiliate section found - will add new one")
             
             # Create new description with updated affiliate section
             new_description = self.add_affiliate_section(current_description, new_affiliate_content)
             
-            print(f"?? New description length: {len(new_description)} characters")
+            debug_print(f"?? New description length: {len(new_description)} characters")
             
             # Update video
             update_data = {
@@ -218,8 +227,8 @@ def load_affiliate_content_from_file(filename='description.txt'):
         with open(filename, 'r', encoding='utf-8') as f:
             content = f.read().strip()
         
-        print(f"? Loaded affiliate content from {filename}")
-        print(f"?? Content length: {len(content)} characters")
+        debug_print(f"? Loaded affiliate content from {filename}")
+        debug_print(f"?? Content length: {len(content)} characters")
         return content
         
     except FileNotFoundError:
@@ -231,18 +240,28 @@ def load_affiliate_content_from_file(filename='description.txt'):
         return None
 
 def main():
-    print("?? YouTube Affiliate Links Manager - Fixed Version")
-    print("=" * 50)
+    global DEBUG
+    
+    # Check for debug flag
+    if '-d' in sys.argv or '--debug' in sys.argv:
+        DEBUG = True
+        print("?? Debug mode enabled")
+    
+    print("?? YouTube Affiliate Links Manager")
+    if not DEBUG:
+        print("=" * 35)
+    else:
+        print("=" * 50)
     
     # Test video ID
     test_video_id = "dp3Di1Hdgfk"
     
     # Load affiliate content from file
-    print("?? Loading affiliate content from file...")
+    debug_print("?? Loading affiliate content from file...")
     affiliate_content = load_affiliate_content_from_file('description.txt')
     
     if not affiliate_content:
-        print("\n?? Creating sample description.txt file...")
+        debug_print("\n?? Creating sample description.txt file...")
         sample_content = """??? RECOMMENDED PRODUCTS & TOOLS:
 
 **Testing & Assessment:**
@@ -285,11 +304,12 @@ Amazon - https://example.com/alzheimers-book
     try:
         manager.authenticate()
         
-        print(f"\n?? Working with video: {test_video_id}")
-        print("=" * 40)
+        debug_print(f"\n?? Working with video: {test_video_id}")
+        if DEBUG:
+            print("=" * 40)
         
         # Preview changes first
-        print("?? PREVIEW MODE:")
+        debug_print("?? PREVIEW MODE:")
         manager.preview_changes(test_video_id, affiliate_content)
         
         print(f"\n? Update affiliate links section?")
@@ -302,11 +322,12 @@ Amazon - https://example.com/alzheimers-book
             )
             
             if success:
-                print(f"\n?? Success! Affiliate section updated.")
-                print(f"?? View video: https://youtube.com/watch?v={test_video_id}")
-                print(f"\n?? Delimiters used:")
-                print(f"Start: {START_DELIMITER}")
-                print(f"End: {END_DELIMITER}")
+                print(f"\n? Success! Affiliate section updated.")
+                debug_print(f"?? View video: https://youtube.com/watch?v={test_video_id}")
+                if DEBUG:
+                    print(f"\n?? Delimiters used:")
+                    print(f"Start: {START_DELIMITER}")
+                    print(f"End: {END_DELIMITER}")
             else:
                 print(f"\n? Failed to update affiliate section.")
         else:
