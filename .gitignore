@@ -1,8 +1,9 @@
 # Credentials and tokens - NEVER commit these
 credentials.json
 token.json
-token_write.json
+token_*.json
 client_secret*.json
+description.txt
 
 # Python cache
 __pycache__/
@@ -21,3 +22,21 @@ env/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Python cache
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Environment
+.env
+venv/
+env/
+
+
